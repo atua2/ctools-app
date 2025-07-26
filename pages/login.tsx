@@ -11,14 +11,20 @@ interface TelegramUser {
   hash: string
 }
 
+declare global {
+  interface Window {
+    TelegramLoginWidget?: any
+    onTelegramAuth?: (user: TelegramUser) => void
+  }
+}
+
 export default function LoginPage() {
   useEffect(() => {
-    // Avoid re-adding script
-    if ((window as any).TelegramLoginWidget) return
+    if (window.TelegramLoginWidget) return
 
     const script = document.createElement('script')
     script.src = 'https://telegram.org/js/telegram-widget.js?7'
-    script.setAttribute('data-telegram-login', 'TokenReviveSecureBot') // Your bot username
+    script.setAttribute('data-telegram-login', 'TokenReviveSecureBot')
     script.setAttribute('data-size', 'large')
     script.setAttribute('data-userpic', 'false')
     script.setAttribute('data-request-access', 'write')
@@ -27,7 +33,7 @@ export default function LoginPage() {
 
     document.getElementById('telegram-login-button')?.appendChild(script)
 
-    ;(window as any).onTelegramAuth = async (user: TelegramUser) => {
+    window.onTelegramAuth = async (user: TelegramUser) => {
       try {
         const res = await axios.post('https://ctools.app/api/auth', user)
         const { userId, name, points } = res.data

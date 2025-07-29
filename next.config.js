@@ -3,9 +3,7 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    appDir: false,
-  },
+  // no `experimental` key here
 }
 
 module.exports = nextConfig

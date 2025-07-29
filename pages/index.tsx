@@ -1,81 +1,51 @@
-// pages/index.tsx
-
-import { useCallback } from 'react'
-import Particles from 'react-tsparticles'
-import { loadFull } from 'tsparticles'
-import { motion } from 'framer-motion'
 import Link from 'next/link'
+import TriangleField from '../components/TriangleField'
+import FloatingDotsBackground from '../components/FloatingDotsBackground'
 
 export default function HomePage() {
-  const particlesInit = useCallback(async (engine: any) => {
-    await loadFull(engine)
-  }, [])
-
   return (
-    <div className="relative min-h-screen bg-black text-white overflow-hidden">
-      {/* Particles Background */}
-      <Particles
-        id="tsparticles"
-        init={particlesInit}
-        options={{
-          background: {
-            color: '#000000',
-          },
-          fpsLimit: 60,
-          interactivity: {
-            events: {
-              onHover: { enable: true, mode: 'repulse' },
-              resize: true,
-            },
-            modes: {
-              repulse: { distance: 100, duration: 0.4 },
-            },
-          },
-          particles: {
-            color: { value: '#6366f1' },
-            links: {
-              color: '#6366f1',
-              distance: 150,
-              enable: true,
-              opacity: 0.3,
-              width: 1,
-            },
-            move: {
-              enable: true,
-              speed: 1,
-              direction: 'none',
-              outModes: { default: 'bounce' },
-            },
-            number: { value: 50 },
-            opacity: { value: 0.3 },
-            shape: { type: 'circle' },
-            size: { value: { min: 1, max: 3 } },
-          },
-          detectRetina: true,
-        }}
-        className="absolute inset-0 z-0"
-      />
+    <div style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}>
+      {/* Background layers */}
+      <TriangleField />
+      <FloatingDotsBackground />
 
-      {/* Hero Content */}
-      <div className="relative z-10 flex flex-col justify-center items-center text-center h-screen px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-2xl"
-        >
-          <h1 className="text-5xl md:text-6xl font-extrabold mb-6">
-            Welcome to <span className="text-indigo-400">CTools</span>
+      {/* Content on top, but now transparent so backgrounds show */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '1rem',
+          color: '#fff',           // text remains white
+          backgroundColor: 'transparent', // no opaque black
+        }}
+      >
+        <div style={{ maxWidth: '600px', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+            Welcome to CTools
           </h1>
-          <p className="text-lg text-gray-300 mb-8 leading-relaxed">
-            Reviving dead crypto projects through voting, community takeovers, and $CTOOLS rewards.
+          <p style={{ fontSize: '1.125rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+            Reviving abandoned crypto projects through community voting, takeovers, and $CTOOLS rewards.
           </p>
           <Link href="/login">
-            <button className="bg-indigo-600 hover:bg-indigo-700 transition-all px-6 py-3 rounded text-lg font-semibold shadow-lg">
+            <button
+              style={{
+                backgroundColor: '#4f46e5',
+                color: '#fff',
+                padding: '0.75rem 1.5rem',
+                fontSize: '1rem',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+              }}
+            >
               🚀 Login with Telegram
             </button>
           </Link>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

@@ -1,96 +1,195 @@
-import React, { useEffect, useRef } from 'react'
+import React, { JSX, useEffect, useRef } from 'react';
 
-const DOT_COUNT = 3         // only three for a triangle
-const RADIUS = 120         // orbit radius
-const SPEED = 0.002        // angular speed
+const DOT_COUNT = 60;
+const MAX_DIST = 120;
+const RIPPLE_DURATION = 1000;
+const COLORS = ['#00ffc3', '#66ccff', '#ff99cc', '#ffcc66', '#ccccff'];
 
-type Dot = { angle: number }
+interface Dot {
+  id: number;
+  angle: number;
+  baseRadius: number;
+  orbitSpeed: number;
+  amplitude: number;
+  size: number;
+  offsetX: number;
+  offsetY: number;
+  lastTouch: number;
+  color: string;
+}
 
-export default function TriangleField() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const dotsRef = useRef<Dot[]>([])
+interface LiveDot {
+  x: number;
+  y: number;
+  radius: number;
+  rippleTime: number;
+  color: string;
+}
+
+function generateDots(width: number, height: number): Dot[] {
+  return Array.from({ length: DOT_COUNT }, (_, i) => {
+    const angle = Math.random() * 2 * Math.PI;
+    const baseRadius = 100 + Math.random() * 40;
+    return {
+      id: i,
+      angle,
+      baseRadius,
+      orbitSpeed: 0.001 + Math.random() * 0.0005,
+      amplitude: 10 + Math.random() * 10,
+      size: 1.5 + Math.random() * 1.5,
+      offsetX: 0,
+      offsetY: 0,
+      lastTouch: 0,
+      color: COLORS[i % COLORS.length],
+    };
+  });
+}
+
+export default function TriangleField(): JSX.Element {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const timeRef = useRef<number>(0);
+  const dotsRef = useRef<Dot[]>([]);
+  const mouseRef = useRef<{ x: number; y: number }>({ x: -9999, y: -9999 });
 
   useEffect(() => {
-    const canvas = canvasRef.current!
-    const ctx = canvas.getContext('2d')!
-    let w = window.innerWidth
-    let h = window.innerHeight
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    canvas.width = w
-    canvas.height = h
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-    // Initialize three dots at equal 120° offsets
-    dotsRef.current = Array.from({ length: DOT_COUNT }, (_, i) => ({
-      angle: (i * 2 * Math.PI) / DOT_COUNT,
-    }))
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const isMobile = width <= 600;
 
-    const onResize = () => {
-      w = window.innerWidth
-      h = window.innerHeight
-      canvas.width = w
-      canvas.height = h
-    }
-    window.addEventListener('resize', onResize)
+    canvas.width = width;
+    canvas.height = height;
 
-    let lastTime = performance.now()
+    dotsRef.current = generateDots(width, height);
 
-    const animate = () => {
-      const now = performance.now()
-      const delta = now - lastTime
-      lastTime = now
+    const handleMouse = (e: MouseEvent) => {
+      mouseRef.current.x = e.clientX;
+      mouseRef.current.y = e.clientY;
+    };
+    window.addEventListener('mousemove', handleMouse);
 
-      ctx.clearRect(0, 0, w, h)
+    let lastPulse = performance.now();
+    let animId: number;
 
-      // center of the screen
-      const cx = w * 0.15
-      const cy = h / 2.8
+    const draw = () => {
+      const now = performance.now();
+      timeRef.current += 1;
 
-      // update and draw each dot
-      dotsRef.current.forEach(dot => {
-        dot.angle += SPEED * delta
-        const x = cx + Math.cos(dot.angle) * RADIUS
-        const y = cy + Math.sin(dot.angle) * RADIUS
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.07)';
+      ctx.fillRect(0, 0, width, height);
 
-        ctx.beginPath()
-        ctx.arc(x, y, 4, 0, Math.PI * 2)
-        ctx.fillStyle = '#00ffc3'
-        ctx.fill()
-      })
+      const centerX = width * (isMobile ? 0.5 : 0.85);
+      const centerY = height / 2.8;
 
-      // draw triangle connecting them
-      if (dotsRef.current.length === DOT_COUNT) {
-        ctx.beginPath()
-        const first = dotsRef.current[0]
-        ctx.moveTo(cx + Math.cos(first.angle) * RADIUS, cy + Math.sin(first.angle) * RADIUS)
-        dotsRef.current.slice(1).forEach(dot => {
-          ctx.lineTo(cx + Math.cos(dot.angle) * RADIUS, cy + Math.sin(dot.angle) * RADIUS)
-        })
-        ctx.closePath()
-        ctx.strokeStyle = 'rgba(0,255,195,0.3)'
-        ctx.lineWidth = 1.5
-        ctx.stroke()
+      const liveDots: LiveDot[] = dotsRef.current.map((dot) => {
+        const t = timeRef.current * dot.orbitSpeed;
+        const curAngle = dot.angle + t * 2 * Math.PI;
+        const radius = dot.baseRadius + Math.sin(t * 2) * dot.amplitude;
+        const homeX = centerX + Math.cos(curAngle) * radius;
+        const homeY = centerY + Math.sin(curAngle) * radius;
+
+        const dx = mouseRef.current.x - (homeX + dot.offsetX);
+        const dy = mouseRef.current.y - (homeY + dot.offsetY);
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 100) {
+          dot.offsetX += dx * 0.02;
+          dot.offsetY += dy * 0.02;
+          if (now - dot.lastTouch > RIPPLE_DURATION) {
+            dot.lastTouch = now;
+          }
+        } else {
+          dot.offsetX -= dot.offsetX * 0.05;
+          dot.offsetY -= dot.offsetY * 0.05;
+        }
+
+        if (now - lastPulse > 3000 && dot.id % 15 === 0) {
+          dot.lastTouch = now;
+          if (dot.id % 30 === 0) lastPulse = now;
+        }
+
+        return {
+          x: homeX + dot.offsetX,
+          y: homeY + dot.offsetY,
+          radius: dot.size,
+          rippleTime: dot.lastTouch,
+          color: dot.color,
+        };
+      });
+
+      liveDots.forEach((d) => {
+        const age = (now - d.rippleTime) / RIPPLE_DURATION;
+        if (age < 1) {
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, age * 120, 0, Math.PI * 2);
+          ctx.strokeStyle = `${d.color}22`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+
+      liveDots.forEach((d) => {
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+      });
+
+      for (let i = 0; i < liveDots.length; i++) {
+        for (let j = i + 1; j < liveDots.length; j++) {
+          const a = liveDots[i];
+          const b = liveDots[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist < MAX_DIST) {
+            const midX = (a.x + b.x) / 2;
+            const midY = (a.y + b.y) / 2;
+            const mx = midX - mouseRef.current.x;
+            const my = midY - mouseRef.current.y;
+            const proximity = Math.max(0, 1 - Math.hypot(mx, my) / 150);
+
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(255,255,255,${
+              (1 - dist / MAX_DIST) * 0.4 + proximity * 0.4
+            })`;
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        }
       }
 
-      requestAnimationFrame(animate)
-    }
+      animId = requestAnimationFrame(draw);
+    };
 
-    animate()
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+    draw();
+    return () => {
+      window.removeEventListener('mousemove', handleMouse);
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  const isMobile = window.innerWidth <= 600;
 
   return (
     <canvas
       ref={canvasRef}
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
+        position: 'absolute',
+        inset: 0,
         pointerEvents: 'none',
-        zIndex: -2,         // behind the dots (zIndex -1) and your content (z10)
-        backgroundColor: 'transparent',
+        zIndex: 0,
+        background: '#000',
+        filter: isMobile ? 'brightness(0.5)' : 'none',
       }}
     />
-  )
+  );
 }

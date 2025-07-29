@@ -18,7 +18,7 @@ export default function Navbar() {
     <nav className="fixed top-0 inset-x-0 z-50 bg-black/70 backdrop-blur-sm">
       <div className="max-w-5xl mx-auto flex items-center justify-between p-4">
         <Link href="/">
-          <a className="text-2xl font-bold text-white">CTools</a>
+          <a className="text-2xl font-bold text-white"></a>
         </Link>
 
         {/* desktop links */}

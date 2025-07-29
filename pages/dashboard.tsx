@@ -1,85 +1,147 @@
+// pages/dashboard.tsx
+
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { useRouter } from 'next/router'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import TriangleField from '../components/TriangleField'
+import FloatingDotsBackground from '../components/FloatingDotsBackground'
 
-interface Token {
+interface Submission {
+  _id: string
   name: string
-  symbol: string
-  chain: string
-  contractAddress: string
-  description: string
-  votes: number
+}
+interface VoteRecord {
+  tokenId: string
+  name: string
+  votedAt: string
+}
+
+interface UserProfile {
+  userId: string
+  name: string
+  points: number
+  submissions: Submission[]
+  votesToday: VoteRecord[]
 }
 
 export default function DashboardPage() {
-  const [userId, setUserId] = useState<string | null>(null)
-  const [name, setName] = useState('')
-  const [points, setPoints] = useState(0)
-  const [submittedTokens, setSubmittedTokens] = useState<Token[]>([])
-  const [votedTokens, setVotedTokens] = useState<Token[]>([])
+  const router = useRouter()
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = localStorage.getItem('user')
-    if (!stored) {
-      window.location.href = '/login'
+    // Redirect if no JWT
+    const token = localStorage.getItem('jwt')
+    if (!token) {
+      router.replace('/login')
       return
     }
-    const parsed = JSON.parse(stored)
-    setUserId(parsed.userId)
-    setName(parsed.name)
-    fetchDashboard(parsed.userId)
-  }, [])
 
-  const fetchDashboard = async (userId: string) => {
-    try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/user/${userId}`)
-      setPoints(res.data.points)
-      setSubmittedTokens(res.data.submittedTokens || [])
-      setVotedTokens(res.data.votedTokens || [])
-    } catch (err) {
-      console.error('Error loading dashboard:', err)
-    }
+    const api = axios.create({
+      baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    api
+      .get<UserProfile>(`/auth/profile`)
+      .then((res) => {
+        setProfile(res.data)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch profile', err)
+        // If unauthorized, redirect to login
+        router.replace('/login')
+      })
+      .finally(() => setLoading(false))
+  }, [router])
+
+  const handleLogout = () => {
+    localStorage.removeItem('jwt')
+    localStorage.removeItem('user')
+    router.replace('/login')
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black text-white">
+        <p>Loading your dashboard…</p>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return null
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-bold mb-4">Welcome, {name}</h1>
-      <p className="mb-6 text-lg">
-        🪙 <strong>Your Points:</strong> {points}
-      </p>
+    <div className="relative min-h-screen overflow-hidden bg-black text-white pt-20 px-4">
+      {/* Background */}
+      <TriangleField />
+      <FloatingDotsBackground />
 
-      {/* Submitted Tokens */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold mb-2">📤 Your Submitted Tokens</h2>
-        {submittedTokens.length === 0 ? (
-          <p className="text-gray-400">You haven’t submitted any tokens yet.</p>
-        ) : (
-          submittedTokens.map((token, i) => (
-            <div key={i} className="bg-gray-800 rounded p-4 mb-3 text-white">
-              <h3 className="font-bold">
-                {token.name} ({token.symbol}) – {token.chain}
-              </h3>
-              <p className="text-sm text-gray-300">{token.description}</p>
-            </div>
-          ))
-        )}
-      </div>
+      {/* Main content */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="relative z-10 max-w-3xl mx-auto space-y-8"
+      >
+        <header className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Hello, {profile.name}</h1>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded"
+          >
+            Log out
+          </button>
+        </header>
 
-      {/* Voted Tokens */}
-      <div>
-        <h2 className="text-xl font-semibold mb-2">🗳️ Tokens You Voted For</h2>
-        {votedTokens.length === 0 ? (
-          <p className="text-gray-400">You haven’t voted on any tokens yet.</p>
-        ) : (
-          votedTokens.map((token, i) => (
-            <div key={i} className="bg-gray-700 rounded p-4 mb-3 text-white">
-              <h3 className="font-bold">
-                {token.name} ({token.symbol}) – {token.chain}
-              </h3>
-              <p className="text-sm text-gray-300">{token.description}</p>
-            </div>
-          ))
-        )}
-      </div>
+        <section className="bg-gray-900 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-2">Your Points</h2>
+          <p className="text-4xl font-bold text-indigo-400">{profile.points}</p>
+        </section>
+
+        <section className="bg-gray-900 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">Your Submissions</h2>
+          {profile.submissions.length ? (
+            <ul className="space-y-2">
+              {profile.submissions.map((sub) => (
+                <li key={sub._id}>
+                  <Link href={`/token/${sub._id}`}>
+                    <a className="text-indigo-400 hover:underline">{sub.name}</a>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-400">You haven’t submitted any tokens yet.</p>
+          )}
+        </section>
+
+        <section className="bg-gray-900 p-6 rounded-lg">
+          <h2 className="text-2xl font-semibold mb-4">Votes Cast Today</h2>
+          {profile.votesToday.length ? (
+            <ul className="space-y-2">
+              {profile.votesToday.map((v) => (
+                <li key={v.tokenId}>
+                  <Link href={`/token/${v.tokenId}`}>
+                    <a className="text-indigo-400 hover:underline">
+                      {v.name}
+                    </a>
+                  </Link>{' '}
+                  <span className="text-gray-500 text-sm">
+                    (at {new Date(v.votedAt).toLocaleTimeString()})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-400">You haven’t voted today.</p>
+          )}
+        </section>
+      </motion.div>
     </div>
   )
 }

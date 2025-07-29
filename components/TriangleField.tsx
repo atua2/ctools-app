@@ -1,4 +1,4 @@
-import React, { JSX, useEffect, useRef } from 'react';
+import React, { JSX, useEffect, useRef, useState } from 'react';
 
 const DOT_COUNT = 60;
 const MAX_DIST = 120;
@@ -51,16 +51,20 @@ export default function TriangleField(): JSX.Element {
   const dotsRef = useRef<Dot[]>([]);
   const mouseRef = useRef<{ x: number; y: number }>({ x: -9999, y: -9999 });
 
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
+    // Safe runtime check
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const isMobileScreen = width <= 600;
+    setIsMobile(isMobileScreen);
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const isMobile = width <= 600;
 
     canvas.width = width;
     canvas.height = height;
@@ -83,7 +87,7 @@ export default function TriangleField(): JSX.Element {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.07)';
       ctx.fillRect(0, 0, width, height);
 
-      const centerX = width * (isMobile ? 0.5 : 0.85);
+      const centerX = width * (isMobileScreen ? 0.5 : 0.85);
       const centerY = height / 2.8;
 
       const liveDots: LiveDot[] = dotsRef.current.map((dot) => {
@@ -176,8 +180,6 @@ export default function TriangleField(): JSX.Element {
       cancelAnimationFrame(animId);
     };
   }, []);
-
-  const isMobile = window.innerWidth <= 600;
 
   return (
     <canvas

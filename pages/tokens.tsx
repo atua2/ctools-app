@@ -1,5 +1,6 @@
+// pages/tokens.tsx
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import API from '../utils/apiClient'
 
 interface Token {
   _id: string
@@ -11,180 +12,172 @@ interface Token {
   votes: number
 }
 
+const CHAINS = ['All', 'Ethereum', 'Solana', 'BSC', 'Polygon', 'Avalanche']
+
 export default function TokensPage() {
   const [tokens, setTokens] = useState<Token[]>([])
-  const [filteredTokens, setFilteredTokens] = useState<Token[]>([])
+  const [filtered, setFiltered] = useState<Token[]>([])
+  const [filter, setFilter] = useState('All')
   const [name, setName] = useState('')
   const [symbol, setSymbol] = useState('')
   const [chain, setChain] = useState('Ethereum')
   const [contractAddress, setContractAddress] = useState('')
   const [description, setDescription] = useState('')
-  const [userId, setUserId] = useState<string | null>(null)
-  const [filter, setFilter] = useState('All')
+  const [votedToday, setVotedToday] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    const stored = localStorage.getItem('user')
-    if (!stored) {
-      window.location.href = '/login'
-      return
-    }
-    const { userId } = JSON.parse(stored)
-    setUserId(userId)
-    fetchTokens()
+    API.get<Token[]>('/tokens')
+      .then(res => {
+        setTokens(res.data)
+        setFiltered(res.data)
+      })
+      .catch(console.error)
   }, [])
 
-  const fetchTokens = async () => {
-    try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tokens`)
-      setTokens(res.data)
-      setFilteredTokens(res.data)
-    } catch (err) {
-      console.error('Failed to fetch tokens:', err)
-    }
-  }
+  useEffect(() => {
+    setFiltered(
+      filter === 'All' ? tokens : tokens.filter(t => t.chain === filter)
+    )
+  }, [filter, tokens])
 
-  const handleFilterChange = (value: string) => {
-    setFilter(value)
-    if (value === 'All') {
-      setFilteredTokens(tokens)
-    } else {
-      setFilteredTokens(tokens.filter((t) => t.chain === value))
+  const vote = async (id: string) => {
+    if (votedToday.has(id)) return
+    try {
+      await API.post('/votes', { tokenId: id })
+      setVotedToday(prev => new Set(prev).add(id))
+      setTokens(tokens.map(t =>
+        t._id === id ? { ...t, votes: t.votes + 1 } : t
+      ))
+    } catch (e) {
+      console.error(e)
     }
   }
 
   const submitToken = async () => {
-    if (!name || !symbol || !contractAddress || !description || !chain) {
-      return alert('All fields are required.')
+    if (!name || !symbol || !chain || !contractAddress || !description) {
+      alert('Please fill all fields.')
+      return
     }
-
-    const exists = tokens.find(
-      (t) => t.contractAddress.toLowerCase() === contractAddress.toLowerCase()
-    )
-    if (exists) return alert('Token with this contract already submitted.')
-
-    try {
-      await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tokens`, {
-        name,
-        symbol,
-        chain,
-        contractAddress,
-        description,
-      })
-      setName('')
-      setSymbol('')
-      setChain('Ethereum')
-      setContractAddress('')
-      setDescription('')
-      fetchTokens()
-    } catch (err) {
-      alert('Token submission failed.')
-      console.error(err)
+    if (tokens.some(t => t.contractAddress.toLowerCase() === contractAddress.toLowerCase())) {
+      alert('Contract already submitted.')
+      return
     }
-  }
-
-  const voteToken = async (tokenId: string) => {
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/votes`, {
-        tokenId,
-        userId,
+      const res = await API.post<Token>('/tokens', {
+        name, symbol, chain, contractAddress, description
       })
-      fetchTokens()
-    } catch (err: any) {
-      if (err.response?.data?.message) {
-        alert(err.response.data.message)
-      } else {
-        alert('Vote failed.')
-        console.error(err)
-      }
+      setTokens([res.data, ...tokens])
+      setName(''); setSymbol(''); setChain('Ethereum')
+      setContractAddress(''); setDescription('')
+    } catch {
+      alert('Submission failed.')
     }
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      <h1 className="text-3xl font-bold mb-6">Revive a Token</h1>
+    <div className="py-10 px-4 max-w-5xl mx-auto">
+      {/* Filter Bar */}
+      <div className="mb-6 flex space-x-4 overflow-x-auto">
+        {CHAINS.map(c => (
+          <button
+            key={c}
+            onClick={() => setFilter(c)}
+            className={`px-4 py-2 rounded-full whitespace-nowrap ${
+              filter === c
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
 
-      {/* Submit Form */}
-      <div className="bg-white shadow p-6 rounded mb-8">
-        <h2 className="text-xl font-semibold mb-4">Submit a Dead Token</h2>
-        <input
-          type="text"
-          placeholder="Token Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full border p-2 mb-2"
-        />
-        <input
-          type="text"
-          placeholder="Symbol (e.g. RUG)"
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          className="w-full border p-2 mb-2"
-        />
-        <input
-          type="text"
-          placeholder="Contract Address"
-          value={contractAddress}
-          onChange={(e) => setContractAddress(e.target.value)}
-          className="w-full border p-2 mb-2"
-        />
-        <select
-          value={chain}
-          onChange={(e) => setChain(e.target.value)}
-          className="w-full border p-2 mb-2"
-        >
-          <option>Ethereum</option>
-          <option>Solana</option>
-          <option>BSC</option>
-          <option>Polygon</option>
-          <option>Avalanche</option>
-        </select>
+      {/* Token Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {filtered.map(token => (
+          <div
+            key={token._id}
+            className="bg-gray-800 p-5 rounded-lg shadow-lg flex flex-col"
+          >
+            <h3 className="text-xl font-semibold mb-1 text-white">
+              {token.name} <span className="text-gray-400">({token.symbol})</span>
+            </h3>
+            <p className="text-sm text-gray-400 mb-3 flex-1">
+              {token.description}
+            </p>
+            <p className="text-xs text-gray-500 mb-2">Chain: {token.chain}</p>
+            <p className="text-xs text-gray-500 mb-4 break-all">
+              Contract: {token.contractAddress}
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-white">
+                Votes: {token.votes}
+              </span>
+              <button
+                onClick={() => vote(token._id)}
+                disabled={votedToday.has(token._id)}
+                className={`px-3 py-1 rounded ${
+                  votedToday.has(token._id)
+                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {votedToday.has(token._id) ? 'Voted' : 'Vote'}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Submission Form */}
+      <div className="mt-10 bg-gray-900 p-6 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-semibold mb-4 text-white">
+          Submit a New Token
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Token Name"
+            className="bg-gray-800 text-white p-3 rounded"
+          />
+          <input
+            value={symbol}
+            onChange={e => setSymbol(e.target.value)}
+            placeholder="Symbol e.g. RUG"
+            className="bg-gray-800 text-white p-3 rounded"
+          />
+          <select
+            value={chain}
+            onChange={e => setChain(e.target.value)}
+            className="bg-gray-800 text-white p-3 rounded"
+          >
+            {CHAINS.filter(c => c !== 'All').map(c => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+          <input
+            value={contractAddress}
+            onChange={e => setContractAddress(e.target.value)}
+            placeholder="Contract Address"
+            className="bg-gray-800 text-white p-3 rounded"
+          />
+        </div>
         <textarea
-          placeholder="Short description"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full border p-2 mb-4"
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Short Description"
+          className="w-full bg-gray-800 text-white p-3 rounded mt-4"
+          rows={3}
         />
-        <button onClick={submitToken} className="bg-blue-600 text-white px-4 py-2 rounded">
+        <button
+          onClick={submitToken}
+          className="mt-4 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700"
+        >
           Submit Token
         </button>
       </div>
-
-      {/* Filter */}
-      <div className="mb-4">
-        <label className="mr-2 font-semibold">Filter by Chain:</label>
-        <select
-          value={filter}
-          onChange={(e) => handleFilterChange(e.target.value)}
-          className="border p-2"
-        >
-          <option value="All">All</option>
-          <option value="Ethereum">Ethereum</option>
-          <option value="Solana">Solana</option>
-          <option value="BSC">BSC</option>
-          <option value="Polygon">Polygon</option>
-          <option value="Avalanche">Avalanche</option>
-        </select>
-      </div>
-
-      {/* Token List */}
-      {filteredTokens.map((token) => (
-        <div key={token._id} className="border p-4 rounded mb-4 bg-white shadow-sm">
-          <h3 className="text-lg font-bold">
-            {token.name} ({token.symbol}) – {token.chain}
-          </h3>
-          <p className="text-sm mb-2 text-gray-700">{token.description}</p>
-          <p className="text-xs mb-2 text-gray-500">Contract: {token.contractAddress}</p>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Votes: {token.votes}</p>
-            <button
-              onClick={() => voteToken(token._id)}
-              className="bg-green-600 text-white px-3 py-1 rounded"
-            >
-              Vote
-            </button>
-          </div>
-        </div>
-      ))}
     </div>
   )
 }

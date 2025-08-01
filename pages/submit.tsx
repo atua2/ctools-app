@@ -1,141 +1,80 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+// pages/submit.tsx
+import { useState } from 'react'
+import { useRouter } from 'next/router'
+import API from '../utils/apiClient'
 
-interface Blockchain {
-  _id: string
-  name: string
-}
-
-export default function SubmitTokenPage() {
-  const [blockchains, setBlockchains] = useState<Blockchain[]>([])
-  const [formData, setFormData] = useState({
-    name: '',
-    symbol: '',
-    contractAddress: '',
-    blockchain: '',
-    description: '',
-  })
-
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const navigate = useNavigate()
-
-  const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id
-
-  useEffect(() => {
-    if (!userId) {
-      navigate('/')
-    }
-  }, [userId, navigate])
-
-  useEffect(() => {
-    const fetchBlockchains = async () => {
-      try {
-        const res = await fetch('/blockchains')
-        const data = await res.json()
-        setBlockchains(data)
-      } catch (err) {
-        console.error('Failed to fetch blockchains', err)
-      }
-    }
-
-    fetchBlockchains()
-  }, [])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
+export default function SubmitPage() {
+  const router = useRouter()
+  const [name, setName] = useState('')
+  const [symbol, setSymbol] = useState('')
+  const [chain, setChain] = useState('Ethereum')
+  const [contractAddress, setContractAddress] = useState('')
+  const [description, setDescription] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
-    setError('')
-    setSuccess('')
+
+    if (!name || !symbol || !contractAddress || !description) {
+      alert('Please fill all fields.')
+      return
+    }
 
     try {
-      const res = await fetch('/tokens/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, submittedBy: userId }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) throw new Error(data.error || 'Submission failed')
-
-      setSuccess('Token submitted for admin review')
-      setFormData({
-        name: '',
-        symbol: '',
-        contractAddress: '',
-        blockchain: '',
-        description: '',
-      })
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
+      await API.post('/tokens', { name, symbol, chain, contractAddress, description })
+      // After successful submit, navigate to the tokens list:
+      router.push('/tokens')
+    } catch (err) {
+      console.error(err)
+      alert('Submission failed.')
     }
   }
 
   return (
-    <div className="max-w-xl mx-auto mt-10 p-6 bg-white rounded-2xl shadow-xl border border-gray-200">
-      <h2 className="text-2xl font-bold mb-6 text-center">Submit a Token</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="flex items-center justify-center min-h-screen bg-black text-white px-6">
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-lg w-full bg-gray-900 p-8 rounded-lg shadow-lg space-y-4"
+      >
+        <h1 className="text-2xl font-bold">Submit a New Token</h1>
         <input
-          name="name"
+          value={name}
+          onChange={e => setName(e.target.value)}
           placeholder="Token Name"
-          className="w-full p-3 border rounded-lg"
-          value={formData.name}
-          onChange={handleChange}
-          required
+          className="w-full bg-gray-800 text-white p-3 rounded"
         />
         <input
-          name="symbol"
-          placeholder="Token Symbol"
-          className="w-full p-3 border rounded-lg"
-          value={formData.symbol}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="contractAddress"
-          placeholder="Contract Address"
-          className="w-full p-3 border rounded-lg"
-          value={formData.contractAddress}
-          onChange={handleChange}
-          required
+          value={symbol}
+          onChange={e => setSymbol(e.target.value)}
+          placeholder="Symbol (e.g. RUG)"
+          className="w-full bg-gray-800 text-white p-3 rounded"
         />
         <select
-          name="blockchain"
-          className="w-full p-3 border rounded-lg"
-          value={formData.blockchain}
-          onChange={handleChange}
-          required
+          value={chain}
+          onChange={e => setChain(e.target.value)}
+          className="w-full bg-gray-800 text-white p-3 rounded"
         >
-          <option value="">Select Blockchain</option>
-          {blockchains.map(bc => (
-            <option key={bc._id} value={bc.name}>
-              {bc.name}
-            </option>
+          {['Ethereum', 'Solana', 'BSC', 'Polygon', 'Avalanche'].map(c => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <textarea
-          name="description"
-          placeholder="Description (optional)"
-          className="w-full p-3 border rounded-lg"
-          value={formData.description}
-          onChange={handleChange}
+        <input
+          value={contractAddress}
+          onChange={e => setContractAddress(e.target.value)}
+          placeholder="Contract Address"
+          className="w-full bg-gray-800 text-white p-3 rounded"
         />
-        {error && <p className="text-red-500">{error}</p>}
-        {success && <p className="text-green-600">{success}</p>}
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Short Description"
+          className="w-full bg-gray-800 text-white p-3 rounded"
+          rows={4}
+        />
         <button
           type="submit"
-          disabled={submitting}
-          className="w-full bg-black text-white py-3 rounded-lg hover:bg-gray-800"
+          className="w-full bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded text-lg font-semibold"
         >
-          {submitting ? 'Submitting...' : 'Submit Token'}
+          Submit Token
         </button>
       </form>
     </div>
